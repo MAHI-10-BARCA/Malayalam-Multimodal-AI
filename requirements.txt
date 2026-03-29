@@ -1,0 +1,10 @@
+streamlit
+pandas
+scikit-learn
+opencv-python
+pytesseract
+pillow
+SpeechRecognition
+pydub
+streamlit-mic-recorder
+google-generativeai
