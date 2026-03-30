@@ -7,6 +7,10 @@ from src.text.text_model import load_labeled_data, apply_preprocessing, train_mo
 from src.image.image_model import predict_from_image
 from src.speech.speech_model import speech_to_text
 
+# 🔥 NEW IMPORTS (only addition)
+from src.visuals.news_renderer import generate_news_image
+from src.visuals.news_fetcher import get_random_news
+
 
 # ================================
 # 🎨 PAGE CONFIG
@@ -18,7 +22,7 @@ st.set_page_config(
 )
 
 # ================================
-# 🎨 CUSTOM CSS (🔥 UI BOOST)
+# 🎨 CUSTOM CSS
 # ================================
 st.markdown("""
 <style>
@@ -98,28 +102,35 @@ if option == "📝 Text":
 
 
 # ================================
-# 🖼️ IMAGE MODE
+# 🖼️ IMAGE MODE (NEWS GENERATOR 🔥)
 # ================================
 elif option == "🖼️ Image":
 
-    st.markdown("### 📸 Upload Image")
+    st.markdown("### 📰 Generate Malayalam News")
 
-    image_file = st.file_uploader("Choose image", type=["jpg", "png", "jpeg"])
+    # 🎯 Category selector
+    category = st.selectbox(
+        "Select News Category",
+        ["sports", "politics", "business", "entertainment", "world"]
+    )
 
-    if image_file:
+    # 🚀 Generate button
+    if st.button("📰 Generate News"):
 
-        with open("temp.jpg", "wb") as f:
-            f.write(image_file.read())
+        # 🔥 Get random news text
+        news_text = get_random_news(category)
 
-        st.image("temp.jpg", caption="🖼️ Uploaded Image", use_container_width=True)
+        # 🎨 Generate image
+        img_path = generate_news_image(news_text, category)
 
-        if st.button("🔍 Analyze Image"):
+        if img_path:
+            st.image(img_path, caption=f"{category.upper()} NEWS", use_container_width=True)
 
-            result, confidence = predict_from_image("temp.jpg", model, vectorizer)
-
-            st.markdown("### 🎯 Result")
-            st.success(f"📌 Category: **{result.upper()}**")
-            st.info(f"📊 Confidence: {confidence:.2f}")
+            # 📄 Show text option
+            with st.expander("📄 Show Text"):
+                st.write(news_text)
+        else:
+            st.error("❌ Failed to generate news image")
 
 
 # ================================
@@ -131,9 +142,7 @@ elif option == "🎤 Audio":
 
     import tempfile
     from pydub import AudioSegment
-    from streamlit_mic_recorder import mic_recorder
 
-    # ---------------- RECORD ----------------
     audio = mic_recorder(
         start_prompt="🎙️ Start Recording",
         stop_prompt="⏹️ Stop Recording",
@@ -151,16 +160,13 @@ elif option == "🎤 Audio":
         sound = sound.set_frame_rate(16000).set_channels(1)
         sound.export(wav_path, format="wav")
 
-        # 🔥 SAVE IN SESSION
         st.session_state.audio_path = wav_path
 
         st.success("✅ Audio Recorded")
 
-    # ---------------- PLAY AUDIO ----------------
     if "audio_path" in st.session_state:
         st.audio(st.session_state.audio_path)
 
-        # ---------------- PROCESS ----------------
         if st.button("🚀 Analyze Speech"):
 
             st.write("🔄 Processing...")

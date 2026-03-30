@@ -8,17 +8,15 @@ from sklearn.metrics import accuracy_score
 
 
 # ================================
-# 📊 LOAD DATA (MERGE BOTH)
+# 📊 LOAD DATA
 # ================================
 def load_labeled_data():
-
     df1 = pd.read_csv("data/text/malayalam.csv")
     df2 = pd.read_csv("data/text/synthetic_data.csv")
 
     df = pd.concat([df1, df2], ignore_index=True)
 
-    # Shuffle
-    df = df.sample(frac=1).reset_index(drop=True)
+    df = df.sample(frac=1, random_state=42).reset_index(drop=True)
 
     print("📊 Dataset size:", df.shape)
 
@@ -26,15 +24,12 @@ def load_labeled_data():
 
 
 # ================================
-# 🧹 PREPROCESS (IMPORTANT)
+# 🧹 PREPROCESS TEXT
 # ================================
 def preprocess_text(text):
     text = str(text)
 
-    # Keep Malayalam only
     text = re.sub(r'[^\u0D00-\u0D7F\s]', ' ', text)
-
-    # Normalize spacing
     text = re.sub(r'\s+', ' ', text)
 
     return text.strip().lower()
@@ -42,21 +37,20 @@ def preprocess_text(text):
 
 def apply_preprocessing(df):
     df["clean_text"] = df["text"].apply(preprocess_text)
-
     print("✅ Preprocessing Done")
-
     return df
 
 
 # ================================
-# 🧠 TRAIN (ROBUST)
+# 🧠 TRAIN MODEL
 # ================================
 def train_model(df):
 
     vectorizer = TfidfVectorizer(
-        analyzer='char',        # 🔥 KEY
-        ngram_range=(3, 5),     # 🔥 IMPORTANT
-        min_df=2
+        analyzer='char',
+        ngram_range=(3, 5),
+        min_df=2,
+        max_features=5000
     )
 
     X = vectorizer.fit_transform(df["clean_text"])
@@ -79,29 +73,51 @@ def train_model(df):
 
 
 # ================================
-# 🎯 PREDICT (HYBRID)
+# 🧠 TEXT QUALITY CHECK (NEW 🔥)
+# ================================
+def is_text_valid(text):
+    words = text.split()
+
+    if len(words) < 3:
+        return False
+
+    single_chars = sum(1 for w in words if len(w) <= 2)
+
+    if single_chars / len(words) > 0.6:
+        return False
+
+    return True
+
+
+# ================================
+# 🎯 PREDICT TEXT (UPDATED 🔥)
 # ================================
 def predict_text(text, model, vectorizer):
 
     clean_text = preprocess_text(text)
 
-    # 🔥 RULE BOOST (helps a lot)
-    if any(word in clean_text for word in ["മത്സരം", "ടീം", "ക്രിക്കറ്റ്"]):
-        return "sports", 0.95
+    # 🚨 Reject garbage text
+    if not is_text_valid(clean_text):
+        return "uncertain", 0.0
 
-    if any(word in clean_text for word in ["മന്ത്രി", "സർക്കാർ", "പാർട്ടി"]):
-        return "politics", 0.95
+    # 🔥 STRONG RULE SYSTEM
+    def keyword_score(text, keywords):
+        return sum(1 for k in keywords if k in text)
 
-    if any(word in clean_text for word in ["വിപണി", "ലാഭം", "സാമ്പത്തിക"]):
-        return "business", 0.95
+    scores = {
+        "sports": keyword_score(clean_text, ["മത്സരം", "ടീം", "ക്രിക്കറ്റ്"]),
+        "politics": keyword_score(clean_text, ["മന്ത്രി", "സർക്കാർ", "പാർട്ടി"]),
+        "business": keyword_score(clean_text, ["വിപണി", "ലാഭം", "സാമ്പത്തിക"]),
+        "entertainment": keyword_score(clean_text, ["സിനിമ", "ചിത്രം", "നടൻ"]),
+        "world": keyword_score(clean_text, ["യുദ്ധം", "രാജ്യം", "അന്താരാഷ്ട്ര"])
+    }
 
-    if any(word in clean_text for word in ["സിനിമ", "ചിത്രം", "നടൻ"]):
-        return "entertainment", 0.95
+    best_category = max(scores, key=scores.get)
 
-    if any(word in clean_text for word in ["യുദ്ധം", "രാജ്യം", "അന്താരാഷ്ട്ര"]):
-        return "world", 0.95
+    if scores[best_category] >= 2:
+        return best_category, 0.95
 
-    # 🔥 Filter garbage
+    # 🚨 Weak text rejection
     if len(clean_text) < 10:
         return "uncertain", 0.0
 
@@ -111,25 +127,8 @@ def predict_text(text, model, vectorizer):
     probs = model.predict_proba(vec)
     confidence = max(probs[0])
 
-    if confidence < 0.6:
+    # 🚨 Strong confidence filter
+    if confidence < 0.75:
         return "uncertain", confidence
 
     return prediction, confidence
-
-
-# ================================
-# 🧪 TEST
-# ================================
-if __name__ == "__main__":
-
-    df = load_labeled_data()
-    df = apply_preprocessing(df)
-
-    model, vectorizer = train_model(df)
-
-    sample = "ഇന്ത്യ ടീം മികച്ച പ്രകടനം കാഴ്ചവെച്ചു"
-
-    pred, conf = predict_text(sample, model, vectorizer)
-
-    print("\nPrediction:", pred)
-    print("Confidence:", conf)
